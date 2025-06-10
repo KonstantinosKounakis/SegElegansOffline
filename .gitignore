@@ -9,3 +9,6 @@
 /Scripts/**
 /share/**
 pyvenv.cfg
+Models/Body/SEG/model.pth
+Models/Body/SKL/model.pth
+Models/Body/__pycache__/**
