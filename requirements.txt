@@ -106,7 +106,9 @@ sympy==1.14.0
 terminado==0.18.1
 tifffile==2025.6.1
 tinycss2==1.4.0
-torch==2.7.1
+torch==2.7.1+cu128
+torchaudio==2.7.1+cu128
+torchvision==0.22.1+cu128
 tornado==6.5.1
 tqdm==4.67.1
 traitlets==5.14.3
