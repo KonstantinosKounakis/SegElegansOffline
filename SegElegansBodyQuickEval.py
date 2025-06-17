@@ -327,18 +327,20 @@ folder_rois_results = '2_curated_rois_results'
 folder_rois_results = os.path.join(save_dir, folder_rois_results)
 print(folder_rois_results)
 
-from utils import list_files, save_mask_rois
-if not os.path.exists(folder_rois_results):
-    os.makedirs(folder_rois_results)
-
 list_images = sorted(list_files(path_complete_mask, end_gray_image))
 with tqdm(total=len(list_images), unit='img') as pbar:
     for name_image in list_images:
-        image_good_mask = os.path.join(path_complete_mask, name_image)
-        image_good_mask = read_tiff_mask(image_good_mask)
+        path_good_mask = os.path.join(path_complete_mask, name_image)
+        print(path_good_mask)
+        image_good_mask = read_tiff_mask(path_good_mask)
+        path_overlap_mask_mask = os.path.join(path_overlap_mask, name_image)
+        print(path_overlap_mask_mask)
+        image_overlap_mask = read_tiff_mask(path_overlap_mask_mask)
         name_image_ = name_image.split('.')[0]
-        name_zip_save = os.path.join(folder_rois_results, name_image_) + '.zip'
-        save_mask_rois(name_zip_save, image_good_mask)
+        image_total_mask = np.concatenate((image_good_mask, image_overlap_mask), axis=0)
+        name_zip_save = name_image_ + '.zip'
+        path_zip_save = os.path.join(folder_rois_results, name_zip_save)
+        save_mask_rois(path_zip_save, image_total_mask)
         pbar.update(1)
 
 print('All done!')
