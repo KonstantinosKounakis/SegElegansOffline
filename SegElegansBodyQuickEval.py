@@ -325,7 +325,9 @@ with tqdm(total=len(list_images), unit='img') as pbar:
 
 folder_rois_results = '2_curated_rois_results'
 folder_rois_results = os.path.join(save_dir, folder_rois_results)
-print(folder_rois_results)
+
+if not os.path.exists(folder_rois_results):
+    os.makedirs(folder_rois_results)
 
 list_images = sorted(list_files(path_complete_mask, end_gray_image))
 with tqdm(total=len(list_images), unit='img') as pbar:
