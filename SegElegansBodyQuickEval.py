@@ -7,7 +7,7 @@ import argparse
 parser=argparse.ArgumentParser()
 parser.add_argument('-i', '--input', type=str, help='Folder with images to analyze')
 parser.add_argument('-x','--extension', type=str, help='File extension of your images')
-parser.add_argument('-b', '--batch', type=int, default=9, help='Sub-crops per image')
+parser.add_argument('-b', '--batch', type=int, default=9, help='Sub-crops to analyze')
 parser.add_argument('-p','--processes', type=int, default=4, help='Number of parallel processes to run for analysis')
 
 args = parser.parse_args()
