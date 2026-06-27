@@ -84,8 +84,8 @@ Pygments==2.19.1
 pyparsing==3.2.3
 python-dateutil==2.9.0.post0
 python-json-logger==3.3.0
-pywin32==310
-pywinpty==2.0.15
+pywin32==310; sys_platform == "win32"
+pywinpty==2.0.15; sys_platform == "win32"
 PyYAML==6.0.2
 pyzmq==26.4.0
 referencing==0.36.2
@@ -121,5 +121,5 @@ widgetsnbextension==4.0.14
 
 --extra-index-url https://download.pytorch.org/whl/cu128
 torch
-torchvision 
+torchvision
 torchaudio

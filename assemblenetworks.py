@@ -5,9 +5,6 @@ import os
 
 # Body network assembly
 
-checkpoint_SEG = os.path.join('Models','Body','SEG','model.pth')
-checkpoint_SKL = os.path.join('Models','Body','SKL','model.pth')
+checkpoint_BODY = os.path.join('Models','Body','Checkpoint','model.pth')
 
-subprocess.run(["file_split_merge","-m","-i", checkpoint_SEG])
-subprocess.run(["file_split_merge","-m","-i", checkpoint_SKL])
-
+subprocess.run(["file_split_merge","-m","-i", checkpoint_BODY])

@@ -49,74 +49,9 @@ else:
 
 print('Parallel processes to run:', N_process)
 
-def get_image_network(device, dir_checkpoint, n_classes, in_size, image_gray, batch_img):
-    model = UMF_ConvLSTM(n_channels=1, n_classes=n_classes, bilinear=True, type_net=1)
-    model.load_state_dict(torch.load(dir_checkpoint))
-    model.eval()
-    model.to(device=device)
 
-    h, w = image_gray.shape
-    h_steps = setps_crop(h, in_size, 3)
-    w_steps = setps_crop(w, in_size, 3)
-    list_box = []
-    for i in h_steps:
-        for j in w_steps:
-            crop = [i, i + in_size, j, j + in_size]
-            list_box.append(crop)
-
-    n_crops = len(list_box)
-    n_reps = 1
-    f = 0
-    while f == 0:
-        if (batch_img * n_reps) < n_crops:
-            n_reps = n_reps + 1
-        else:
-            f = 1
-
-    if n_classes == 1:
-        masK_img = np.zeros((h, w), dtype="uint8")
-
-    if n_classes == 4:
-        masK_img = np.zeros((h, w, 3), dtype="uint8")
-
-    with torch.no_grad():
-        cnt_crops1 = 0
-        cnt_crops2 = 0
-        for i in range(n_reps):
-            masK_crops = np.zeros((h, w), dtype="uint8")
-            for j in range(batch_img):
-                if cnt_crops1 < n_crops:
-                    image_i = image_gray[list_box[cnt_crops1][0]:list_box[cnt_crops1][1], list_box[cnt_crops1][2]:list_box[cnt_crops1][3]]
-                    image_i = np.expand_dims(image_i, axis=0)
-                    masK_crops = update_mask(masK_crops, image_i)
-                    cnt_crops1 = cnt_crops1 + 1
-
-            image_i = torch.from_numpy(masK_crops).to(device=device, dtype=torch.float32).unsqueeze(1)
-            image_i = model(image_i)
-            image_i = (torch.sigmoid(image_i) > 0.5) * 255
-            image_i = image_i.cpu().numpy().astype('uint8')
-
-            for j in range(batch_img):
-                if cnt_crops2 < n_crops:
-                    if n_classes == 1:
-                        masK_img[list_box[cnt_crops2][0]:list_box[cnt_crops2][1], list_box[cnt_crops2][2]:list_box[cnt_crops2][3]] = image_i[j, :, :, :]
-
-                    if n_classes == 4:
-                        masK_img[list_box[cnt_crops2][0]:list_box[cnt_crops2][1], list_box[cnt_crops2][2]:list_box[cnt_crops2][3], 0] = image_i[j, 1, :, :]
-                        masK_img[list_box[cnt_crops2][0]:list_box[cnt_crops2][1], list_box[cnt_crops2][2]:list_box[cnt_crops2][3], 1] = image_i[j, 2, :, :]
-                        masK_img[list_box[cnt_crops2][0]:list_box[cnt_crops2][1], list_box[cnt_crops2][2]:list_box[cnt_crops2][3], 2] = image_i[j, 3, :, :]
-                    cnt_crops2 = cnt_crops2 + 1
-
-    del model, image_i, masK_crops
-    gc.collect()
-    torch.cuda.empty_cache()
-    return masK_img
-
-checkpoint_SEG = os.path.join('Models', 'Body', 'SEG')
-checkpoint_SKL = os.path.join('Models', 'Body', 'SKL')
-network_SEG = os.path.join(checkpoint_SEG, 'model.pth')
-network_SKL = os.path.join(checkpoint_SKL, 'model.pth')
-from Models.Body.UMF_ConvLSTM import UMF_ConvLSTM
+checkpoint_BODY = os.path.join('Models', 'Body', 'Checkpoint')
+network_BODY = os.path.join(checkpoint_BODY, 'model.pth')
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -136,7 +71,7 @@ list_images = sorted(list_files(test_images, end_gray_image))
 with tqdm(total=len(list_images), unit='img') as pbar:
     for name_image in list_images:
         # name_image = list_images[q]
-        name_image_ = name_image.split('.')[0]
+        name_image_ = os.path.splitext(name_image)[0]
         name_image_save = name_image_ + '.bmp'
         path_image_gray = os.path.join(test_images, name_image)
 
@@ -146,12 +81,7 @@ with tqdm(total=len(list_images), unit='img') as pbar:
         h, w = image_gray.shape
 
         if not os.path.exists(os.path.join(path_SEGMENTATION, name_image_save)):
-            # Obtain segmentation from Network1
-            image_seg = get_image_network(device=device, dir_checkpoint=network_SEG, n_classes=4,
-                                            in_size=512, image_gray=image_gray, batch_img=batch_crop_img)
-
-            # Obtain Skeleton from Network2
-            image_skl = get_image_network(device=device, dir_checkpoint=network_SKL, n_classes=1,
+            image_seg, image_skl = get_image_network(device=device, dir_checkpoint=network_BODY,
                                             in_size=512, image_gray=image_gray, batch_img=batch_crop_img)
             cv2.imwrite(os.path.join(path_SEGMENTATION, name_image_save), image_seg)
             cv2.imwrite(os.path.join(path_SKELETON, name_image_save), image_skl)
@@ -204,7 +134,7 @@ args = {'Parallel_process': Parallel_process,
         }
 
 def post_processing(args, name_image):
-    name_image_ = name_image.split('.')[0]
+    name_image_ = os.path.splitext(name_image)[0]
     name_image_save = name_image_ + '.bmp'
     seg_path=os.path.join(args['path_SEGMENTATION'], name_image_save)
     image_seg = cv2.imread(seg_path)
@@ -316,7 +246,7 @@ with tqdm(total=len(list_images), unit='img') as pbar:
         path_reject_mask=os.path.join(path_edge_small_mask, name_image)
         print(path_reject_mask)
         image_reject_mask = read_tiff_mask(path_reject_mask)
-        name_image_ = name_image.split('.')[0]
+        name_image_ = os.path.splitext(name_image)[0]
         image_total_mask=np.concatenate((image_good_mask,image_overlap_mask,image_reject_mask),axis=0)
         name_zip_save = name_image_ + '.zip'
         path_zip_save = os.path.join(path_all_rois_results, name_zip_save)
@@ -338,7 +268,7 @@ with tqdm(total=len(list_images), unit='img') as pbar:
         path_overlap_mask_mask = os.path.join(path_overlap_mask, name_image)
         print(path_overlap_mask_mask)
         image_overlap_mask = read_tiff_mask(path_overlap_mask_mask)
-        name_image_ = name_image.split('.')[0]
+        name_image_ = os.path.splitext(name_image)[0]
         image_total_mask = np.concatenate((image_good_mask, image_overlap_mask), axis=0)
         name_zip_save = name_image_ + '.zip'
         path_zip_save = os.path.join(folder_rois_results, name_zip_save)

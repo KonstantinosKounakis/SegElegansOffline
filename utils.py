@@ -13,13 +13,14 @@ from PIL import Image, ImageDraw
 import math
 import numpy.matlib as npm
 from roifile import ImagejRoi, roiwrite
-from tqdm import tqdm
+from tqdm.auto import tqdm
 import matplotlib.pyplot as plt
 import tifffile
+from Models.Body.SmaAt_Attention_LSTM import UNet
 
 def imread_image(path_image):
     head, tail = os.path.split(path_image)
-    ext = tail.split('.')[1]
+    ext = os.path.splitext(tail)[1].lstrip('.')
 
     if ext == 'tif' or ext == 'tiff' or ext == 'TIF' or ext == 'TIFF':
         image = tifffile.imread(path_image)
@@ -80,16 +81,10 @@ def rotate_rectangle(HH, WW, cx, cy, w, h, angle):
 
 def setps_crop(h, in_size, max_crops):
     diff_h = h - in_size
-
-    steps = []
-    for i in range(2, max_crops):
-        if diff_h % i == 0:
-            steps.append(i)
-
-    step_i = int(diff_h / steps[-1])
-    v_step = []
-    for i in range(steps[-1] + 1):
-        v_step.append(i * step_i)
+    if diff_h <= 0:
+        return [0]
+    n_steps = math.ceil(diff_h / in_size)
+    v_step = [int(round(i * diff_h / n_steps)) for i in range(n_steps + 1)]
     return v_step
 
 
@@ -747,3 +742,72 @@ def IoU_per_worm(image_masK_ground_truth, masK_predict_all, Per_value):
 warnings.filterwarnings('ignore')
 
 
+
+
+def get_image_network(device, dir_checkpoint, in_size, image_gray, batch_img):
+    model = None
+    try:
+        model = UNet(n_channels=1, n_classes1=4, n_classes2=1, bilinear=True)
+        model.load_state_dict(torch.load(dir_checkpoint, map_location=device))
+        model.eval()
+        model.to(device=device)
+
+        h, w = image_gray.shape
+        h_steps = setps_crop(h, in_size, 3)
+        w_steps = setps_crop(w, in_size, 3)
+        list_box = []
+        for i in h_steps:
+            for j in w_steps:
+                list_box.append([i, i + in_size, j, j + in_size])
+
+        n_crops = len(list_box)
+        n_reps = 1
+        f = 0
+        while f == 0:
+            if (batch_img * n_reps) < n_crops:
+                n_reps = n_reps + 1
+            else:
+                f = 1
+
+        masK_seg = np.zeros((h, w, 3), dtype="uint8")
+        masK_skl = np.zeros((h, w), dtype="uint8")
+
+        with torch.no_grad():
+            cnt_crops1 = 0
+            cnt_crops2 = 0
+            for i in range(n_reps):
+                masK_crops = np.zeros((h, w), dtype="uint8")
+                for j in range(batch_img):
+                    if cnt_crops1 < n_crops:
+                        image_i = image_gray[list_box[cnt_crops1][0]:list_box[cnt_crops1][1],
+                                             list_box[cnt_crops1][2]:list_box[cnt_crops1][3]]
+                        image_i = np.expand_dims(image_i, axis=0)
+                        masK_crops = update_mask(masK_crops, image_i)
+                        cnt_crops1 = cnt_crops1 + 1
+
+                image_t = torch.from_numpy(masK_crops).to(device=device, dtype=torch.float32).unsqueeze(1)
+                out_seg, out_skl = model(image_t)
+                out_seg = ((torch.sigmoid(out_seg) > 0.5) * 255).cpu().numpy().astype('uint8')
+                out_skl = ((torch.sigmoid(out_skl) > 0.5) * 255).cpu().numpy().astype('uint8')
+                del image_t
+
+                for j in range(batch_img):
+                    if cnt_crops2 < n_crops:
+                        box = list_box[cnt_crops2]
+                        masK_seg[box[0]:box[1], box[2]:box[3], 0] = out_seg[j, 1, :, :]
+                        masK_seg[box[0]:box[1], box[2]:box[3], 1] = out_seg[j, 2, :, :]
+                        masK_seg[box[0]:box[1], box[2]:box[3], 2] = out_seg[j, 3, :, :]
+                        masK_skl[box[0]:box[1], box[2]:box[3]]    = out_skl[j, 0, :, :]
+                        cnt_crops2 = cnt_crops2 + 1
+
+        return masK_seg, masK_skl
+
+    except torch.cuda.OutOfMemoryError:
+        raise RuntimeError(
+            f"GPU ran out of memory at batch={batch_img}. Re-run with a smaller -b / batch "
+            f"value, or restart the kernel/session if it persists."
+        ) from None
+    finally:
+        del model
+        gc.collect()
+        torch.cuda.empty_cache()
