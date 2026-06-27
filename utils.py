@@ -748,7 +748,7 @@ def get_image_network(device, dir_checkpoint, in_size, image_gray, batch_img):
     model = None
     try:
         model = UNet(n_channels=1, n_classes1=4, n_classes2=1, bilinear=True)
-        model.load_state_dict(torch.load(dir_checkpoint, map_location=device))
+        model.load_state_dict(torch.load(dir_checkpoint, map_location=device, weights_only=False))
         model.eval()
         model.to(device=device)
 
