@@ -27,7 +27,9 @@ def imread_image(path_image):
     else:
         # image = cv2.imread(path_image, cv2.IMREAD_GRAYSCALE)
         image = cv2.imread(path_image)
-    return image.astype('uint8')
+    if image.dtype != np.uint8:
+       image = cv2.normalize(image, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+    return image
 
 
 def read_tiff_mask(path_image_mask):
@@ -753,6 +755,8 @@ def get_image_network(device, dir_checkpoint, in_size, image_gray, batch_img):
         model.to(device=device)
 
         h, w = image_gray.shape
+        if image_gray.dtype != np.uint8:
+            image_gray = cv2.normalize(image_gray, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
         h_steps = setps_crop(h, in_size, 3)
         w_steps = setps_crop(w, in_size, 3)
         list_box = []
